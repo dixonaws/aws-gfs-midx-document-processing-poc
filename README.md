@@ -1,4 +1,4 @@
-Welcome to the AWS CodeStar sample web service
+Welcome to the AWS Document Processing Sample
 ==============================================
 This code is using Serverless SAM model to create a document processing pipeline and search application based on Amazon Textract, Amazon Comprehend and Amazon Elasticsearch.
 This code is using Lambda S3 event trigger to invoke lambda which orchestrates all the natural language processing pipeline
