@@ -20,4 +20,10 @@ This sample includes:
 
 What Do I Do Next?
 ------------------
+To deploy just run:
+
+sam deploy --guided 
+
+The parameters should be the default one if working in my account. If deploying in a new account, make sure you dont use the default s3 SAM uses for deployment
+
 WIP
