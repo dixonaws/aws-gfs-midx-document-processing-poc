@@ -12,6 +12,7 @@ import os.path
 import sys
 import boto3
 import json
+import time
 import io
 from io import BytesIO
 import sys
@@ -120,7 +121,20 @@ def handler(event, context):
         with open('/tmp/{}', 'rb') as document:
             imageBytes = bytearray(document.read())
         print("Object downloaded")
-        response = textract.analyze_document(Document={'Bytes': imageBytes},FeatureTypes=["TABLES", "FORMS"])
+        response_id = textract.start_document_analysis(DocumentLocation={
+        'S3Object': {
+            'Bucket': bucket,
+            'Name': key
+        }},FeatureTypes=["TABLES", "FORMS"])
+        jobid = response_id['JobId']
+        print("Job ID: "+jobid)
+        job_status='IN_PROGRESS'
+        while job_status=='IN_PROGRESS':
+            print("no document yet waiting 3 secs")
+            time.sleep(3)
+            response = textract.get_document_analysis(JobId=jobid)
+            print(response)
+            job_status=response['JobStatus']
         document = Document(response)
         table=[]
         forms=[]

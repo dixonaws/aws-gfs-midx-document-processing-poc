@@ -83,6 +83,14 @@ Resources:
       Layers: 
         - !Ref MyLayer
     Type: AWS::Serverless::Function
+    Events:
+        BucketEvent1:
+          Type: S3
+          Properties:
+            Bucket:
+              Ref: S3
+            Events:
+              - 's3:ObjectCreated:*'
  
   S3:
     Type: AWS::S3::Bucket

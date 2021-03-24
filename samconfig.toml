@@ -2,10 +2,10 @@ version = 0.1
 [default]
 [default.deploy]
 [default.deploy.parameters]
-stack_name = "aws-gfs-midx-document-processing-poc"
-s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-6fdh0k0530as"
-s3_prefix = "aws-gfs-midx-document-processing-poc"
+stack_name = "mufg-text-processing-poc"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-t1dyremhsniy"
+s3_prefix = "mufg-text-processing-poc"
 region = "eu-west-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "DOMAINNAME=\"documentserachapp394\" CognitoAdminEmail=\"jcastans@amazon.com\""
+parameter_overrides = "DOMAINNAME=\"elastisearchdomain\" CognitoAdminEmail=\"jcastans@amazon.es\""
