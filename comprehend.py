@@ -113,8 +113,10 @@ def handler(event, context):
     print("key is"+key)
     print("bucket is"+bucket)
     text=""
+    text_custom=""
     textvalues=[]
     textvalues_entity={}
+    textvalues_allentity={}
     try:
         s3.Bucket(bucket).download_file(Key=key,Filename='/tmp/{}')
         # Read document content
@@ -140,28 +142,64 @@ def handler(event, context):
         forms=[]
         #print(document)
         for page in document.pages:
-                table = outputTable(page)
-                forms = outputForm(page)
+            table+=outputTable(page)
+            forms+=outputForm(page)
+        print(forms)
         print(table)
         blocks=response['Blocks']
         for block in blocks:
             if block['BlockType'] == 'LINE':
                 text += block['Text']+"\n"
+                text_custom += block['Text']+"          "
         print(text)
         # Extracting Key Phrases
         keyphrase_response = comprehend.detect_key_phrases(Text=text, LanguageCode='en')
         KeyPhraseList=keyphrase_response.get("KeyPhrases")
         for s in KeyPhraseList:
               textvalues.append(s.get("Text"))
-                    
+        
+        "Entities from text"
         detect_entity= comprehend.detect_entities(Text=text, LanguageCode='en')
+        print(detect_entity)
         EntityList=detect_entity.get("Entities")
+        print(EntityList)
+        entity_id=0
         for s in EntityList:
+                print(s)
+                if s["Score"]>0.90:
+                    textvalues_allentity[str(s.get("Type").strip('\t\n\r'))+"-"+str(entity_id)]=str([s.get("Text").strip('\t\n\r'),s.get("Score")])
+                    print(textvalues_allentity)
+                    entity_id+=1
+                #Logic of entities selection Example Date
                 textvalues_entity.update([(s.get("Type").strip('\t\n\r'),s.get("Text").strip('\t\n\r'))])
-
+        print(textvalues_entity)
+        
+        "Key-Value from form or tables"
+        #detect_entity= comprehend.detect_entities(Text=text, LanguageCode='en')
+        forms_entities={}
+        for entitie in forms:
+            forms_entities[str(entitie[0])]=str(entitie[1])
+        
+        
+        """Custom Entities from Text"""
+        EntityList=[]
+        text_custometities={}
+        for block in blocks:
+            if block['BlockType'] == 'LINE':
+                text_custom = block['Text']+"\n"
+                customs_entities_text = comprehend.detect_entities(Text=text_custom,LanguageCode='es',EndpointArn='arn:aws:comprehend:eu-west-1:180224691447:entity-recognizer-endpoint/custom-entities-enpoint')
+                EntityList+=customs_entities_text.get("Entities")
+        print(EntityList)
+        entity_id=0
+        for entitie in EntityList:
+            text_custometities[entitie["Type"]+str(entity_id)]=str([entitie.get("Text").strip('\t\n\r'),entitie.get("Score")])
+            entity_id+=1
+        print(text_custometities)
+        
+        
         s3url= 'https://s3.console.aws.amazon.com/s3/object/'+bucket+'/'+key+'?region='+region
         
-        searchdata={'s3link':s3url,'KeyPhrases':textvalues,'Entity':textvalues_entity,'text':text, 'table':table, 'forms':forms}
+        searchdata={'s3link':s3url,'KeyPhrases':textvalues,'Entity':textvalues_allentity,"Entity_pairs":forms_entities,"Custom_Entities_text":text_custometities,'text':text, 'table':table, 'forms':forms}
         print(searchdata)
         print("connecting to ES")
         es=connectES()

@@ -36,7 +36,7 @@ Resources:
     Properties:
         LayerName: Boto3
         Description: My Lambda Layer with Deserialize Function, Objectpath Module & AWS Regions JSON
-        ContentUri: lambda-layers/boto3-layer.zip
+        ContentUri: lambda-layers/aws-boto-layer.zip
         CompatibleRuntimes:
             - python3.6
             - python3.7
