@@ -174,11 +174,52 @@ def handler(event, context):
                 textvalues_entity.update([(s.get("Type").strip('\t\n\r'),s.get("Text").strip('\t\n\r'))])
         print(textvalues_entity)
         
+        
+        
         "Key-Value from form or tables"
         #detect_entity= comprehend.detect_entities(Text=text, LanguageCode='en')
-        forms_entities={}
+        forms_key_value={}
         for entitie in forms:
-            forms_entities[str(entitie[0])]=str(entitie[1])
+            forms_key_value[str(entitie[0]).strip(".,:")]=str(entitie[1]).strip(".,")
+            
+        
+        forms_keys=forms_key_value.keys()
+        print("FORM_KEY_VALUE: ",forms_key_value)
+        
+        
+        "Entities from forms"
+        form_entities={}
+        EntityList=[]
+        entity_id=0
+        for form in forms:
+            for value in form:
+                entities=comprehend.detect_entities(Text=value, LanguageCode='en')
+                EntityList+=entities["Entities"]
+        for entitie in EntityList:
+            form_entities[entitie["Type"]+str(entity_id)]=str([entitie.get("Text").strip('\t\n\r'),entitie.get("Score")])
+            entity_id+=1
+        print("FORM_ENTITIES: ",form_entities)
+        
+        
+        
+        
+        """Custom Entities from Form"""
+        forms_keys=forms_key_value.keys()
+        form_customentities={}
+        EntityList=[]
+        EntityListWithNewValues=[]
+        entity_id=0
+        for key in forms_keys:
+            key_detected=comprehend.detect_entities(Text=key, LanguageCode='en',EndpointArn='arn:aws:comprehend:eu-west-1:180224691447:entity-recognizer-endpoint/custom-entities-enpoint')
+            EntityList+=key_detected["Entities"]
+        print(EntityList)
+        for entity in EntityList:
+            try:
+                form_customentities[entity["Type"]+str(entity_id)]=str([forms_key_value[entity["Text"]],entity["Score"]])
+                entity_id+=1
+            except Exception as e:
+                print(e)
+        print("FORM_Custom_ENTITIES: ",form_customentities)
         
         
         """Custom Entities from Text"""
@@ -187,7 +228,7 @@ def handler(event, context):
         for block in blocks:
             if block['BlockType'] == 'LINE':
                 text_custom = block['Text']+"\n"
-                customs_entities_text = comprehend.detect_entities(Text=text_custom,LanguageCode='es',EndpointArn='arn:aws:comprehend:eu-west-1:180224691447:entity-recognizer-endpoint/custom-entities-enpoint')
+                customs_entities_text = comprehend.detect_entities(Text=text_custom,LanguageCode='en',EndpointArn='arn:aws:comprehend:eu-west-1:180224691447:entity-recognizer-endpoint/custom-entities-enpoint')
                 EntityList+=customs_entities_text.get("Entities")
         print(EntityList)
         entity_id=0
@@ -196,10 +237,17 @@ def handler(event, context):
             entity_id+=1
         print(text_custometities)
         
+        """
+        VENDOR -> ""
+        INVOICE_NUMBER -> ""
+        AMOUNTTOBEPAID -> ""
+        DATE -> ""
+        LOCATION -> ""
+        """
         
         s3url= 'https://s3.console.aws.amazon.com/s3/object/'+bucket+'/'+key+'?region='+region
         
-        searchdata={'s3link':s3url,'KeyPhrases':textvalues,'Entity':textvalues_allentity,"Entity_pairs":forms_entities,"Custom_Entities_text":text_custometities,'text':text, 'table':table, 'forms':forms}
+        searchdata={'s3link':s3url,'KeyPhrases':textvalues,'Entity':textvalues_allentity,"key_value_pairs":forms_key_value,"Custom_Entities_text":text_custometities,'text':text, 'table':table, 'forms':forms}
         print(searchdata)
         print("connecting to ES")
         es=connectES()
