@@ -117,6 +117,7 @@ def handler(event, context):
     textvalues=[]
     textvalues_entity={}
     textvalues_allentity={}
+    textvalues_allentity_es={}
     try:
         s3.Bucket(bucket).download_file(Key=key,Filename='/tmp/{}')
         # Read document content
@@ -167,7 +168,8 @@ def handler(event, context):
         for s in EntityList:
                 print(s)
                 if s["Score"]>0.90:
-                    textvalues_allentity[str(s.get("Type").strip('\t\n\r'))+"-"+str(entity_id)]=str([s.get("Text").strip('\t\n\r'),s.get("Score")])
+                    textvalues_allentity_es[str(s.get("Type").strip('\t\n\r'))+"-"+str(entity_id)]=str([s.get("Text").strip('\t\n\r'),s.get("Score")])
+                    textvalues_allentity[str(s.get("Type").strip('\t\n\r'))+"-"+str(entity_id)]=[s.get("Text").strip('\t\n\r'),s.get("Score")]
                     print(textvalues_allentity)
                     entity_id+=1
                 #Logic of entities selection Example Date
@@ -189,14 +191,17 @@ def handler(event, context):
         
         "Entities from forms"
         form_entities={}
+        form_entities_es={}
         EntityList=[]
         entity_id=0
         for form in forms:
             for value in form:
-                entities=comprehend.detect_entities(Text=value, LanguageCode='en')
-                EntityList+=entities["Entities"]
+                if value!='':
+                    entities=comprehend.detect_entities(Text=value, LanguageCode='en')
+                    EntityList+=entities["Entities"]
         for entitie in EntityList:
-            form_entities[entitie["Type"]+str(entity_id)]=str([entitie.get("Text").strip('\t\n\r'),entitie.get("Score")])
+            form_entities[entitie["Type"]+str(entity_id)]=[entitie.get("Text").strip('\t\n\r'),entitie.get("Score")]
+            form_entities_es[entitie["Type"]+str(entity_id)]=str([entitie.get("Text").strip('\t\n\r'),entitie.get("Score")])
             entity_id+=1
         print("FORM_ENTITIES: ",form_entities)
         
@@ -206,16 +211,18 @@ def handler(event, context):
         """Custom Entities from Form"""
         forms_keys=forms_key_value.keys()
         form_customentities={}
+        form_customentities_es={}
         EntityList=[]
         EntityListWithNewValues=[]
         entity_id=0
-        for key in forms_keys:
-            key_detected=comprehend.detect_entities(Text=key, LanguageCode='en',EndpointArn='arn:aws:comprehend:eu-west-1:180224691447:entity-recognizer-endpoint/custom-entities-enpoint')
+        for i in forms_keys:
+            key_detected=comprehend.detect_entities(Text=i, LanguageCode='en',EndpointArn='arn:aws:comprehend:eu-west-1:180224691447:entity-recognizer-endpoint/custom-endpoint')
             EntityList+=key_detected["Entities"]
         print(EntityList)
         for entity in EntityList:
             try:
-                form_customentities[entity["Type"]+str(entity_id)]=str([forms_key_value[entity["Text"]],entity["Score"]])
+                form_customentities[entity["Type"]+str(entity_id)]=[forms_key_value[entity["Text"]],entity["Score"]]
+                form_customentities_es[entity["Type"]+str(entity_id)]=str([forms_key_value[entity["Text"]],entity["Score"]])
                 entity_id+=1
             except Exception as e:
                 print(e)
@@ -225,29 +232,100 @@ def handler(event, context):
         """Custom Entities from Text"""
         EntityList=[]
         text_custometities={}
+        text_custometities_es={}
         for block in blocks:
             if block['BlockType'] == 'LINE':
                 text_custom = block['Text']+"\n"
-                customs_entities_text = comprehend.detect_entities(Text=text_custom,LanguageCode='en',EndpointArn='arn:aws:comprehend:eu-west-1:180224691447:entity-recognizer-endpoint/custom-entities-enpoint')
+                customs_entities_text = comprehend.detect_entities(Text=text_custom,LanguageCode='en',EndpointArn='arn:aws:comprehend:eu-west-1:180224691447:entity-recognizer-endpoint/custom-endpoint')
                 EntityList+=customs_entities_text.get("Entities")
         print(EntityList)
         entity_id=0
         for entitie in EntityList:
-            text_custometities[entitie["Type"]+str(entity_id)]=str([entitie.get("Text").strip('\t\n\r'),entitie.get("Score")])
+            text_custometities[entitie["Type"]+str(entity_id)]=[entitie.get("Text").strip('\t\n\r'),entitie.get("Score")]
+            text_custometities_es[entitie["Type"]+str(entity_id)]=str([entitie.get("Text").strip('\t\n\r'),entitie.get("Score")])
             entity_id+=1
         print(text_custometities)
         
         """
+        SELECTION LOGIC
+        
         VENDOR -> ""
         INVOICE_NUMBER -> ""
         AMOUNTTOBEPAID -> ""
         DATE -> ""
         LOCATION -> ""
+        
+        Extraction of requited Fields
         """
+        fields=[
+               {"field":"VENDOR","type":"custom","mode":"text"},
+               {"field":"INVOICE_NUMBER","type":"custom","mode":"form"},
+               {"field":"AMOUNTTOBEPAID","type":"custom","mode":"form"},
+               {"field":"DATE","type":"builtin","mode":"all"}
+               ]    
+               
+        print("START FINAL VALUE EXTRACTION")
+        
+        def get_final_value(field_name,field_type,field_mode):
+            score_register=0
+            final_entity={field_name:None}
+            if field_type=="custom" and field_mode=="text":
+                for entity in text_custometities:
+                    if field_name in entity:
+                        value=text_custometities[entity][0]
+                        score=text_custometities[entity][1]
+                        if score > score_register:
+                            score_register=score
+                            final_entity[field_name]=[value,score]
+                if score_register<0.9:
+                    return {field_name:None}
+                else:
+                    return final_entity
+            elif field_type=="custom" and field_mode=="form":
+                for entity in form_customentities:
+                    if field_name in entity:
+                        value=form_customentities[entity][0]
+                        score=form_customentities[entity][1]
+                        if score > score_register:
+                            score_register=score
+                            final_entity[field_name]=[value,score]
+                if score_register<0.9:
+                    return {field_name:None}
+                else:
+                    return final_entity
+            elif field_type=="builtin" and field_mode=="all":
+                temp_dict={**textvalues_allentity, **form_entities}
+                for entity in temp_dict:
+                    if field_name in entity:
+                        value=temp_dict[entity][0]
+                        score=temp_dict[entity][1]
+                        if score > score_register:
+                            score_register=score
+                            final_entity[field_name]=[value,score]
+                if score_register<0.9:
+                    return {field_name:None}
+                else:
+                    return final_entity
+            else:
+                return final_entity
+        
+        merged_results={}
+        for field in fields:
+            field_name=field["field"]
+            field_type=field["type"]
+            field_mode=field["mode"]
+            merged_results = {**merged_results, **get_final_value(field_name,field_type,field_mode)}
+            
+        print("FINAL RESULTS: ", merged_results)
+        merged_results_es = {key: str(value) for key, value in merged_results.items()}
+                
         
         s3url= 'https://s3.console.aws.amazon.com/s3/object/'+bucket+'/'+key+'?region='+region
         
-        searchdata={'s3link':s3url,'KeyPhrases':textvalues,'Entity':textvalues_allentity,"key_value_pairs":forms_key_value,"Custom_Entities_text":text_custometities,'text':text, 'table':table, 'forms':forms}
+        #searchdata={'s3link':s3url,'KeyPhrases':textvalues,'Entity':textvalues_allentity,"key_value_pairs":forms_key_value,"Custom_Entities_text":text_custometities_es,
+        #           'FinalValues':merged_results_es,'text':text, 'table':table, 'forms':forms}
+        searchdata={'s3link':s3url,"key_value_pairs":forms_key_value,
+                    'FinalValues':merged_results_es,'text':text}
         print(searchdata)
         print("connecting to ES")
         es=connectES()
