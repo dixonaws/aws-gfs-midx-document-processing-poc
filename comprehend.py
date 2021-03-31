@@ -142,7 +142,7 @@ def handler(event, context):
             print(response)
             job_status=response['JobStatus']
             
-        "PARSE ALL TEXTRACT USING CLASSES (DOCUMENT) DEFINED IN trp.py python file"
+        "PARSE ALL TEXTRACT RESPONSE USING CLASSES (DOCUMENT) DEFINED IN trp.py python file"
         document = Document(response)
         table=[]
         forms=[]
@@ -159,7 +159,7 @@ def handler(event, context):
                 text_custom += block['Text']+"          "
         print(text)
         
-        "Extracting Key Phrases"
+        "Extracting Key Phrases (NOT USED)"
         keyphrase_response = comprehend.detect_key_phrases(Text=text, LanguageCode='en')
         KeyPhraseList=keyphrase_response.get("KeyPhrases")
         for s in KeyPhraseList:
@@ -263,6 +263,9 @@ def handler(event, context):
         LOCATION -> ""
         
         Extraction of requited Fields
+        
+        type: comprehend builtin vs custom entities or both
+        mode: where do I get the data (from text or from forms)
         """
         fields=[
                {"field":"VENDOR","type":"custom","mode":"text"},
