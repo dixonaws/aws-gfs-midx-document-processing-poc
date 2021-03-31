@@ -124,6 +124,9 @@ def handler(event, context):
         with open('/tmp/{}', 'rb') as document:
             imageBytes = bytearray(document.read())
         print("Object downloaded")
+        
+        "EXTRACT TEXT FROM TEXTRACT"
+    
         response_id = textract.start_document_analysis(DocumentLocation={
         'S3Object': {
             'Bucket': bucket,
@@ -138,6 +141,8 @@ def handler(event, context):
             response = textract.get_document_analysis(JobId=jobid)
             print(response)
             job_status=response['JobStatus']
+            
+        "PARSE ALL TEXTRACT USING CLASSES (DOCUMENT) DEFINED IN trp.py python file"
         document = Document(response)
         table=[]
         forms=[]
@@ -153,13 +158,14 @@ def handler(event, context):
                 text += block['Text']+"\n"
                 text_custom += block['Text']+"          "
         print(text)
-        # Extracting Key Phrases
+        
+        "Extracting Key Phrases"
         keyphrase_response = comprehend.detect_key_phrases(Text=text, LanguageCode='en')
         KeyPhraseList=keyphrase_response.get("KeyPhrases")
         for s in KeyPhraseList:
               textvalues.append(s.get("Text"))
         
-        "Entities from text"
+        "Comprehend Entities from text"
         detect_entity= comprehend.detect_entities(Text=text, LanguageCode='en')
         print(detect_entity)
         EntityList=detect_entity.get("Entities")
@@ -168,6 +174,7 @@ def handler(event, context):
         for s in EntityList:
                 print(s)
                 if s["Score"]>0.90:
+                    "Elasticsearch needs values as string not list *_es"
                     textvalues_allentity_es[str(s.get("Type").strip('\t\n\r'))+"-"+str(entity_id)]=str([s.get("Text").strip('\t\n\r'),s.get("Score")])
                     textvalues_allentity[str(s.get("Type").strip('\t\n\r'))+"-"+str(entity_id)]=[s.get("Text").strip('\t\n\r'),s.get("Score")]
                     print(textvalues_allentity)
@@ -178,7 +185,7 @@ def handler(event, context):
         
         
         
-        "Key-Value from form or tables"
+        "Getting Key-Value from form"
         #detect_entity= comprehend.detect_entities(Text=text, LanguageCode='en')
         forms_key_value={}
         for entitie in forms:
@@ -189,7 +196,7 @@ def handler(event, context):
         print("FORM_KEY_VALUE: ",forms_key_value)
         
         
-        "Entities from forms"
+        "Comprehend Entities from forms"
         form_entities={}
         form_entities_es={}
         EntityList=[]
@@ -267,6 +274,7 @@ def handler(event, context):
         print("START FINAL VALUE EXTRACTION")
         
         def get_final_value(field_name,field_type,field_mode):
+            "function that get final value based on field nature"
             score_register=0
             final_entity={field_name:None}
             if field_type=="custom" and field_mode=="text":
@@ -309,6 +317,7 @@ def handler(event, context):
             else:
                 return final_entity
         
+        "extracting and merging results"
         merged_results={}
         for field in fields:
             field_name=field["field"]
@@ -324,6 +333,7 @@ def handler(event, context):
         
         #searchdata={'s3link':s3url,'KeyPhrases':textvalues,'Entity':textvalues_allentity,"key_value_pairs":forms_key_value,"Custom_Entities_text":text_custometities_es,
         #           'FinalValues':merged_results_es,'text':text, 'table':table, 'forms':forms}
+        "SEND DATA TO ELASTICSEARCH"
         searchdata={'s3link':s3url,"key_value_pairs":forms_key_value,
                     'FinalValues':merged_results_es,'text':text}
         print(searchdata)
